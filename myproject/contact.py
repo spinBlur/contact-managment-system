@@ -46,31 +46,15 @@ def view_contacts():
         connection = utils.get_db_connection()
         cursor = connection.cursor()
 
-        query = """SELECT c.contact_id, c.name, c.email, g.group_name, p.phone_number
+        query = """SELECT c.contact_id, c.name, c.email, g.group_name, p.phone_number, p.note
                    FROM contacts c
                    LEFT JOIN groups_table g ON c.group_id = g.group_id
                    LEFT JOIN phone p ON c.contact_id = p.contact_id
                    ORDER BY c.contact_id"""
         cursor.execute(query)
         results = cursor.fetchall()
-
-        contacts = {}
-        for row in results:
-            contact_id, name, email, group_name, phone_number = row
-            if contact_id not in contacts:
-                contacts[contact_id] = {
-                    "name": name,
-                    "email": email,
-                    "group": group_name,
-                    "phone_numbers": []
-                }
-            if phone_number:
-                contacts[contact_id]["phone_numbers"].append(phone_number)
-
-        for contact in contacts.values():
-
-            print(f"Name: {contact['name']} \nEmail: {contact['email']} \nGroup: {contact['group']} \nPhones: {', '.join(contact['phone_numbers'])}")
-
+        view(results)
+        
     except Error as e:
         print(f"Error: {e}")
     finally:
@@ -83,30 +67,40 @@ def search_contact(name):
         connection = utils.get_db_connection()
         cursor = connection.cursor()
 
-        query = """SELECT c.contact_id, c.name, c.email, g.group_name, p.phone_number
+        query = """SELECT c.contact_id, c.name
                    FROM contacts c
-                   LEFT JOIN groups_table g ON c.group_id = g.group_id
-                   LEFT JOIN phone p ON c.contact_id = p.contact_id
                    WHERE c.name LIKE %s
                    ORDER BY c.contact_id"""
         cursor.execute(query, (f"%{name}%",))
         results = cursor.fetchall()
 
-        contacts = {}
+        if not results:
+            print("No contacts found.")
+            return
+        
+        # Display search results
+        print("ID" + "    Name")
         for row in results:
-            contact_id, name, email, group_name, phone_number = row
-            if contact_id not in contacts:
-                contacts[contact_id] = {
-                    "name": name,
-                    "email": email,
-                    "group": group_name,
-                    "phone_numbers": []
-                }
-            if phone_number:
-                contacts[contact_id]["phone_numbers"].append(phone_number)
+            contact_id = row[0]
+            name = row[1]
+            print(f"{contact_id}    {name}")
 
-        for contact in contacts.values():
-            print(f"Name: {contact['name']}, Email: {contact['email']}, Group: {contact['group']}, Phones: {', '.join(contact['phone_numbers'])}")
+        # Get contact ID to view details
+        contact_id = int(input("Enter contact ID to view details(or leave blank to exit): ") or 0)
+        if contact_id == 0:
+            return
+        query = """SELECT c.contact_id, c.name, c.email, g.group_name, p.phone_number, p.note
+                   FROM contacts c
+                   LEFT JOIN groups_table g ON c.group_id = g.group_id
+                   LEFT JOIN phone p ON c.contact_id = p.contact_id
+                   WHERE c.contact_id = %s
+                   ORDER BY c.contact_id"""
+        cursor.execute(query, (contact_id,))
+        results = cursor.fetchall()
+        if not results:
+            print("Contact not found.")
+            return
+        view(results)
 
     except Error as e:
         print(f"Error: {e}")
@@ -221,7 +215,8 @@ def view_groups_table():
         results = cursor.fetchall()
 
         for row in results:
-            print(f"Group ID: {row[0]}, Group Name: {row[1]}")
+            #print(f"Group ID: {row[0]}, Group Name: {row[1]}")
+            print(row)
 
     except Error as e:
         print(f"Error: {e}")
@@ -229,3 +224,22 @@ def view_groups_table():
         if connection.is_connected():
             cursor.close()
             connection.close()
+
+def view(results):
+    contacts = {}
+    for row in results:
+        contact_id, name, email, group_name, phone_number, note = row
+        if contact_id not in contacts:
+            contacts[contact_id] = {
+                "name": name,
+                "email": email,
+                "group": group_name,
+                "phone_numbers": []
+            }
+        if phone_number:
+            contacts[contact_id]["phone_numbers"].append(phone_number + " ( " + note + " )")
+
+    print("----- All Contacts -----")
+    for contact_id, contact in contacts.items():
+        print("contact_id:", contact_id)
+        print(f"Name: {contact['name']} \nEmail: {contact['email']} \nGroup: {contact['group']} \nPhones: {', '.join(contact['phone_numbers'])}\n")
